@@ -352,6 +352,8 @@ export default function App() {
     try {
       await api(`/records/${record._id}`, { method: 'DELETE' });
       lastDeleted.current = record;
+      // Undo window is exactly 5 seconds; after that the delete is final
+      setTimeout(() => { if (lastDeleted.current === record) lastDeleted.current = null; }, 5000);
       showToast({ kind: 'undo', text: `Deleted ${fmt(record.value)}`, action: 'Undo', duration: 5000 });
     } catch (err) {
       // Not deleted on the server: put it back so the screen matches the database
