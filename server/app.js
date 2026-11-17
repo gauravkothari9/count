@@ -16,9 +16,12 @@ const Record =
 let connecting;
 export function connectDB() {
   if (mongoose.connection.readyState === 1) return Promise.resolve();
-  if (!process.env.MONGODB_URI) return Promise.reject(new Error('MONGODB_URI is not set'));
+  // Tolerate copy/paste slips: surrounding spaces or quotes
+  const uri = (process.env.MONGODB_URI || '').trim().replace(/^["']|["']$/g, '');
+  if (!uri) return Promise.reject(new Error('MONGODB_URI is not set'));
   connecting ??= mongoose
-    .connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 })
+    // authSource: the database user lives in "admin" even if ?authSource=admin was left off
+    .connect(uri, { serverSelectionTimeoutMS: 10000, authSource: 'admin' })
     .catch((err) => { connecting = undefined; throw err; });
   return connecting;
 }
