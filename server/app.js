@@ -17,11 +17,12 @@ let connecting;
 export function connectDB() {
   if (mongoose.connection.readyState === 1) return Promise.resolve();
   // Tolerate copy/paste slips: surrounding spaces or quotes
-  const uri = (process.env.MONGODB_URI || '').trim().replace(/^["']|["']$/g, '');
+  let uri = (process.env.MONGODB_URI || '').trim().replace(/^["']|["']$/g, '');
   if (!uri) return Promise.reject(new Error('MONGODB_URI is not set'));
+  // The database user lives in "admin": add ?authSource=admin if it was left off
+  if (!/[?&]authSource=/i.test(uri)) uri += (uri.includes('?') ? '&' : '?') + 'authSource=admin';
   connecting ??= mongoose
-    // authSource: the database user lives in "admin" even if ?authSource=admin was left off
-    .connect(uri, { serverSelectionTimeoutMS: 10000, authSource: 'admin' })
+    .connect(uri, { serverSelectionTimeoutMS: 10000 })
     .catch((err) => { connecting = undefined; throw err; });
   return connecting;
 }
