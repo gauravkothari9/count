@@ -7,7 +7,8 @@ import {
   useSpring,
   useTransform,
 } from 'framer-motion';
-import { AlertCircle, Check, Hash, Plus, RotateCw, Trash2, Undo2, X } from 'lucide-react';
+import { AlertCircle, Check, Download, Hash, Plus, RotateCw, Share, Trash2, Undo2, X } from 'lucide-react';
+import { useInstall } from './useInstall.js';
 
 /* ---------- helpers ---------- */
 
@@ -288,6 +289,57 @@ function RecordDialog({ open, onClose, onSubmit }) {
   );
 }
 
+function IOSInstallDialog({ open, onClose }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.15 } }}
+          onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+        >
+          <motion.div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ios-title"
+            initial={{ opacity: 0, scale: 0.92, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.14 } }}
+            transition={SPRING}
+          >
+            <div className="dialog-head">
+              <div className="install-head">
+                <img src="/icon-192.png" alt="" className="install-icon" />
+                <div>
+                  <h2 id="ios-title">Install Counter</h2>
+                  <p className="dialog-sub">Add it to your Home Screen</p>
+                </div>
+              </div>
+              <button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
+            </div>
+            <ol className="steps">
+              <li><span className="step-n">1</span> Tap <Share size={16} className="inline-ic" /> <strong>Share</strong> in Safari's toolbar</li>
+              <li><span className="step-n">2</span> Choose <strong>Add to Home Screen</strong></li>
+              <li><span className="step-n">3</span> Tap <strong>Add</strong></li>
+            </ol>
+            <button type="button" className="btn primary" onClick={onClose}>Got it</button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 /* ---------- app ---------- */
 
 export default function App() {
@@ -300,6 +352,9 @@ export default function App() {
   const lastDeleted = useRef(null); // record that Undo can restore
   const recordBtnRef = useRef(null);
   const firstPaint = useRef(true);
+  const { canInstall, hasPrompt, install } = useInstall();
+  const [iosHelp, setIosHelp] = useState(false);
+  const closeIosHelp = useCallback(() => setIosHelp(false), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -417,9 +472,26 @@ export default function App() {
             <span className="brand-mark"><Hash size={16} strokeWidth={2.6} /></span>
             <span className="brand-name">Counter</span>
           </div>
-          <span className="today">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-          </span>
+          <AnimatePresence mode="wait" initial={false}>
+            {canInstall ? (
+              <motion.button
+                key="install"
+                className="install-btn"
+                onClick={() => (hasPrompt ? install() : setIosHelp(true))}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={SPRING}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Download size={16} strokeWidth={2.4} /> Install app
+              </motion.button>
+            ) : (
+              <motion.span key="date" className="today" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </motion.header>
 
         <motion.section
@@ -536,6 +608,7 @@ export default function App() {
       </div>
 
       <RecordDialog open={open} onClose={closeDialog} onSubmit={addRecord} />
+      <IOSInstallDialog open={iosHelp} onClose={closeIosHelp} />
       <Toast toast={toast} onAction={undoDelete} onClose={closeToast} />
     </MotionConfig>
   );
