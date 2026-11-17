@@ -17,13 +17,17 @@ export default function App() {
   async function load() {
     try {
       const res = await fetch('/api/records');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+      if (!res.ok || !data) {
+        throw new Error(`Server error ${res.status}: ${data?.error || text.slice(0, 120) || res.statusText}`);
+      }
       setRecords(data.records);
       setTotal(data.total);
       setError('');
-    } catch {
-      setError('Could not reach the server. Is it running?');
+    } catch (err) {
+      setError(err.message || 'Could not reach the server.');
     }
   }
 

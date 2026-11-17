@@ -29,7 +29,10 @@ app.use(express.json());
 
 app.use('/api', async (_req, res, next) => {
   try { await connectDB(); next(); }
-  catch (err) { console.error(err); res.status(503).json({ error: 'Database unavailable' }); }
+  catch (err) {
+    console.error(err);
+    res.status(503).json({ error: `Database unavailable: ${err.message}` });
+  }
 });
 
 // List all records + total
