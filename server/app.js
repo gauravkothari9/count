@@ -56,11 +56,26 @@ app.post('/api/records', async (req, res) => {
   res.status(201).json(record);
 });
 
-// Delete a record
+// Permanently delete a record (hard delete — it is removed from the database right away)
 app.delete('/api/records/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'bad id' });
   await Record.findByIdAndDelete(req.params.id);
   res.status(204).end();
+});
+
+// Undo a delete: put the same record back with its original id, value and date
+app.post('/api/records/restore', async (req, res) => {
+  const { _id, date } = req.body || {};
+  const value = Number(req.body?.value);
+  if (!mongoose.isValidObjectId(_id) || Number.isNaN(value) || Number.isNaN(Date.parse(date))) {
+    return res.status(400).json({ error: 'invalid record' });
+  }
+  const record = await Record.findOneAndUpdate(
+    { _id },
+    { $setOnInsert: { value, date: new Date(date) } },
+    { upsert: true, new: true }
+  );
+  res.status(201).json(record);
 });
 
 export default app;

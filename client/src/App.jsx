@@ -297,7 +297,7 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [flashId, setFlashId] = useState(null);
-  const pendingDelete = useRef(null); // { record, timer }
+  const lastDeleted = useRef(null); // record that Undo can restore
   const recordBtnRef = useRef(null);
   const firstPaint = useRef(true);
 
@@ -324,19 +324,6 @@ export default function App() {
     setTimeout(() => recordBtnRef.current?.focus(), 0);
   }, []);
 
-  // Commit any pending delete (also when the page is closed)
-  const commitDelete = useCallback(() => {
-    const p = pendingDelete.current;
-    if (!p) return;
-    clearTimeout(p.timer);
-    pendingDelete.current = null;
-    fetch(`/api/records/${p.record._id}`, { method: 'DELETE', keepalive: true }).catch(() => {});
-  }, []);
-  useEffect(() => {
-    window.addEventListener('pagehide', commitDelete);
-    return () => window.removeEventListener('pagehide', commitDelete);
-  }, [commitDelete]);
-
   async function addRecord(value) {
     haptic();
     closeDialog();
@@ -358,23 +345,38 @@ export default function App() {
     }
   }
 
-  function deleteRecord(record) {
+  // Deletes from the database immediately (permanent). Undo re-inserts the same record.
+  async function deleteRecord(record) {
     haptic();
-    commitDelete(); // finalize any earlier delete first
     setRecords((rs) => rs.filter((r) => r._id !== record._id));
-    const timer = setTimeout(commitDelete, 5000);
-    pendingDelete.current = { record, timer };
-    showToast({ kind: 'undo', text: `Deleted ${fmt(record.value)}`, action: 'Undo', duration: 5000 });
+    try {
+      await api(`/records/${record._id}`, { method: 'DELETE' });
+      lastDeleted.current = record;
+      showToast({ kind: 'undo', text: `Deleted ${fmt(record.value)}`, action: 'Undo', duration: 5000 });
+    } catch (err) {
+      // Not deleted on the server: put it back so the screen matches the database
+      setRecords((rs) => (rs.some((r) => r._id === record._id) ? rs : [...rs, record].sort(byDate)));
+      showToast({ kind: 'error', text: `Couldn't delete: ${err.message}` });
+    }
   }
 
-  function undoDelete() {
-    const p = pendingDelete.current;
-    if (!p) return;
-    clearTimeout(p.timer);
-    pendingDelete.current = null;
-    setRecords((rs) => [...rs, p.record].sort(byDate));
-    setFlashId(p.record._id);
+  async function undoDelete() {
+    const record = lastDeleted.current;
+    if (!record) return;
+    lastDeleted.current = null;
     setToast(null);
+    setRecords((rs) => [...rs, record].sort(byDate));
+    setFlashId(record._id);
+    try {
+      await api('/records/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _id: record._id, value: record.value, date: record.date }),
+      });
+    } catch (err) {
+      setRecords((rs) => rs.filter((r) => r._id !== record._id));
+      showToast({ kind: 'error', text: `Couldn't undo: ${err.message}` });
+    }
   }
 
   /* derived */
